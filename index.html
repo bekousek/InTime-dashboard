@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Zóna – Dashboard</title>
 
-  <!-- Google Fonts -->
+  <!-- Google Fonts (offline fallback automaticky systémové) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
@@ -91,6 +91,20 @@
       margin-top: 1.2em;
     }
     .closed .time { color: var(--danger); }
+
+    /* === Mute button === */
+    #muteBtn {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      padding: .6rem 1rem;
+      border: none;
+      border-radius: .5rem;
+      font-weight: 700;
+      background: var(--accent);
+      color: #000;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -119,6 +133,8 @@
 
   <!-- ============ STEP 2: DASHBOARD ============ -->
   <div class="wrapper hidden" id="dashboard">
+    <button id="muteBtn" class="hidden">🔇 Ticho</button>
+
     <h2 id="zone">ZÓNA</h2>
 
     <div class="label">Aktuální čas</div>
@@ -130,6 +146,11 @@
     <div class="small" id="schedule">Otevřeno --:-- – --:--</div>
     <div class="small" id="next">Další zóna otevřena v --:--</div>
   </div>
+
+  <!-- ============ AUDIO ============ -->
+  <!-- Ulož do stejné složky soubory tick.mp3 a alarm.mp3 -->
+  <audio id="tickAudio" src="tick.mp3" preload="auto" loop></audio>
+  <audio id="alarmAudio" src="alarm.mp3" preload="auto"></audio>
 
   <script>
     // ===== Pomocné funkce =====
@@ -149,8 +170,14 @@
     const cdEl        = document.getElementById('countdown');
     const scheduleEl  = document.getElementById('schedule');
     const nextEl      = document.getElementById('next');
+    const muteBtn     = document.getElementById('muteBtn');
 
-    let closeTime = null;
+    // ===== Audio =====
+    const tickAudio  = document.getElementById('tickAudio');
+    const alarmAudio = document.getElementById('alarmAudio');
+
+    let closeTime   = null;
+    let alarmPlayed = false;
 
     function startGame(gameStartStr, zoneIndex) {
       // gameStartStr formát HH:MM
@@ -160,16 +187,24 @@
 
       const open  = addMin(today, zoneIndex * 45);
       const close = addMin(open,   45);
-      const next  = zoneIndex < 4 ? addMin(close, 0) : null; // další zóna začíná ihned po uzavření
+      const next  = zoneIndex < 4 ? close : null; // další zóna začíná okamžitě po uzavření
 
       // Aktualizuj UI
       zoneEl.textContent = `ZÓNA ${zoneIndex + 1}`;
       scheduleEl.textContent = `Otevřeno ${fmt(open)} – ${fmt(close)}`;
       nextEl.textContent = next ? `Další zóna otevřena v ${fmt(next)}` : '— konec hry —';
 
-      closeTime = close;
+      closeTime   = close;
+      alarmPlayed = false;
+
       setupEl.classList.add('hidden');
       dashEl.classList.remove('hidden');
+      muteBtn.classList.remove('hidden');
+
+      // Spusť tikání
+      tickAudio.currentTime = 0;
+      tickAudio.muted = false;
+      tickAudio.play().catch(()=>{});
 
       // Fullscreen na první kliknutí dovnitř dashboardu
       if (document.fullscreenEnabled && !document.fullscreenElement) {
@@ -177,7 +212,7 @@
       }
     }
 
-    // Tick funkce běží jakmile je dashboard zobrazen
+    // ===== Tick loop =====
     function tick() {
       const now = new Date();
       nowEl.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
@@ -190,6 +225,14 @@
         const s = pad(diff % 60);
         cdEl.textContent = `${h}:${m}:${s}`;
         document.body.classList.toggle('closed', diff === 0);
+
+        if (diff === 0 && !alarmPlayed) {
+          // Zastav tikání, spusť alarm
+          tickAudio.pause();
+          alarmAudio.currentTime = 0;
+          alarmAudio.play().catch(()=>{});
+          alarmPlayed = true;
+        }
       }
       requestAnimationFrame(tick);
     }
@@ -203,16 +246,17 @@
       startGame(timeVal, zoneIdx);
     });
 
+    // Mute / unmute tikání (alarm se NEmutuje)
+    muteBtn.addEventListener('click', () => {
+      tickAudio.muted = !tickAudio.muted;
+      muteBtn.textContent = tickAudio.muted ? '🔈 Zapnout' : '🔇 Ticho';
+    });
+
     // ===== Podpora přímých linků (query paramy) =====
     const params = new URLSearchParams(location.search);
     if (params.has('open') && params.has('close') && params.has('zone')) {
-      // starší způsob – kompatibilita
       startGame(params.get('open'), parseInt(params.get('zone').replace(/\D+/g, ''), 10) - 1);
-      // override times
-      const [oh, om] = params.get('open').split(':').map(Number);
       const [ch, cm] = params.get('close').split(':').map(Number);
-      const today = new Date();
-      today.setHours(oh, om, 0, 0);
       closeTime = new Date();
       closeTime.setHours(ch, cm, 0, 0);
     }
