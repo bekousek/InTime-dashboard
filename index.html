@@ -1,6 +1,138 @@
 <!doctype html>
 <html lang="cs">
-<head><meta charset="utf-8"><title>Intime – zóna</title></head>
-<body style="display:flex;justify-content:center;align-items:center;height:100vh">
-  <h1>It works 🚀</h1>
-</body></html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Zóna – Dashboard</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #111;
+      --fg: #f5f5f5;
+      --accent: #00e676;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: "Roboto Mono", monospace;
+      background: var(--bg);
+      color: var(--fg);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .wrapper {
+      text-align: center;
+    }
+
+    h1 {
+      font-family: "Montserrat", sans-serif;
+      font-size: 4rem;
+      margin: .2em 0;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .time {
+      font-size: 6rem;
+      color: var(--accent);
+    }
+
+    .label {
+      font-size: 1.2rem;
+      margin-top: .5em;
+      opacity: .8;
+    }
+
+    .small {
+      font-size: 1rem;
+      margin-top: 1.2em;
+    }
+
+    /* Fallback when the countdown is over */
+    .closed .time {
+      color: #f44336; /* red */
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <h1 id="zone">ZÓNA 2</h1>
+
+    <div class="label">Aktuální čas</div>
+    <div class="time" id="now">--:--:--</div>
+
+    <div class="label">Do zavření zbývá</div>
+    <div class="time" id="countdown">--:--:--</div>
+
+    <div class="small" id="schedule">Otevřeno 14:45 – 15:30</div>
+    <div class="small" id="next">Další zóna otevřena od 15:30</div>
+  </div>
+
+  <script>
+    // ======= KONFIGURACE PŘES QUERY PARAMS ==========
+    // ?zone=Z%C3%93NA%203&open=14:45&close=15:30&next=16:00
+    const params = new URLSearchParams(location.search);
+    const zoneName = params.get('zone') || 'ZÓNA 2';
+    const openStr  = params.get('open')  || '14:45';
+    const closeStr = params.get('close') || '15:30';
+    const nextStr  = params.get('next')  || '15:30';
+
+    // ======= INTERNÍ FUNKCE ==========
+    function hhmmToDate(str) {
+      const [h, m] = str.split(':').map(Number);
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      return d;
+    }
+
+    const openTime  = hhmmToDate(openStr);
+    const closeTime = hhmmToDate(closeStr);
+
+    const $zone      = document.getElementById('zone');
+    const $schedule  = document.getElementById('schedule');
+    const $next      = document.getElementById('next');
+    const $now       = document.getElementById('now');
+    const $countdown = document.getElementById('countdown');
+
+    $zone.textContent     = zoneName;
+    $schedule.textContent = `Otevřeno ${openStr} – ${closeStr}`;
+    $next.textContent     = `Další zóna otevřena od ${nextStr}`;
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function tick() {
+      const now = new Date();
+
+      // Aktuální čas
+      $now.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+      // Countdown
+      let diff = Math.floor((closeTime - now) / 1000);
+      if (diff < 0) diff = 0;
+
+      const h = pad(Math.floor(diff / 3600));
+      const m = pad(Math.floor((diff % 3600) / 60));
+      const s = pad(diff % 60);
+      $countdown.textContent = `${h}:${m}:${s}`;
+
+      // Přepni barvu, pokud je zóna zavřená
+      document.body.classList.toggle('closed', diff === 0);
+
+      requestAnimationFrame(tick);
+    }
+    tick();
+
+    // Fullscreen na kliknutí (jen u kompatibilních prohlížečů)
+    if (document.fullscreenEnabled && !document.fullscreenElement) {
+      document.body.addEventListener('click', () => document.body.requestFullscreen(), { once: true });
+    }
+  </script>
+</body>
+</html>
