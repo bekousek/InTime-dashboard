@@ -15,55 +15,111 @@
       --bg: #111;
       --fg: #f5f5f5;
       --accent: #00e676;
+      --danger: #f44336;
     }
     html, body {
       margin: 0;
       height: 100%;
-      font-family: "Roboto Mono", monospace;
       background: var(--bg);
       color: var(--fg);
+      font-family: "Roboto Mono", monospace;
       display: flex;
       justify-content: center;
       align-items: center;
     }
 
+    /* === SETUP SCREEN === */
+    .setup {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      align-items: center;
+      text-align: center;
+    }
+    .setup h1 {
+      font-family: "Montserrat", sans-serif;
+      font-size: 2.5rem;
+      margin: 0 0 .5em;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .setup label {
+      font-size: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+    }
+    .setup input,
+    .setup select,
+    .setup button {
+      padding: .6rem 1rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: .5rem;
+    }
+    .setup button {
+      cursor: pointer;
+      background: var(--accent);
+      color: #000;
+      font-weight: 700;
+    }
+
+    /* === DASHBOARD === */
+    .hidden { display:none; }
+
     .wrapper {
       text-align: center;
     }
-
-    h1 {
+    h2 {
       font-family: "Montserrat", sans-serif;
       font-size: 4rem;
       margin: .2em 0;
       text-transform: uppercase;
       letter-spacing: 2px;
     }
-
     .time {
       font-size: 6rem;
       color: var(--accent);
     }
-
     .label {
       font-size: 1.2rem;
       margin-top: .5em;
       opacity: .8;
     }
-
     .small {
       font-size: 1rem;
       margin-top: 1.2em;
     }
-
-    /* Fallback when the countdown is over */
-    .closed .time {
-      color: #f44336; /* red */
-    }
+    .closed .time { color: var(--danger); }
   </style>
 </head>
 <body>
-  <div class="wrapper">
-    <h1 id="zone">ZÓNA 2</h1>
+  <!-- ============ STEP 1: ORGANIZÁTOR NASTAVÍ HRU ============ -->
+  <div class="setup" id="setup">
+    <h1>Nastavení hry</h1>
+
+    <label>
+      Začátek hry
+      <input type="time" id="startTime" required>
+    </label>
+
+    <label>
+      Zóna
+      <select id="zoneSelect">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+    </label>
+
+    <button id="launch">Spustit</button>
+  </div>
+
+  <!-- ============ STEP 2: DASHBOARD ============ -->
+  <div class="wrapper hidden" id="dashboard">
+    <h2 id="zone">ZÓNA</h2>
 
     <div class="label">Aktuální čas</div>
     <div class="time" id="now">--:--:--</div>
@@ -71,67 +127,94 @@
     <div class="label">Do zavření zbývá</div>
     <div class="time" id="countdown">--:--:--</div>
 
-    <div class="small" id="schedule">Otevřeno 14:45 – 15:30</div>
-    <div class="small" id="next">Další zóna otevřena od 15:30</div>
+    <div class="small" id="schedule">Otevřeno --:-- – --:--</div>
+    <div class="small" id="next">Další zóna otevřena v --:--</div>
   </div>
 
   <script>
-    // ======= KONFIGURACE PŘES QUERY PARAMS ==========
-    // ?zone=Z%C3%93NA%203&open=14:45&close=15:30&next=16:00
-    const params = new URLSearchParams(location.search);
-    const zoneName = params.get('zone') || 'ZÓNA 2';
-    const openStr  = params.get('open')  || '14:45';
-    const closeStr = params.get('close') || '15:30';
-    const nextStr  = params.get('next')  || '15:30';
+    // ===== Pomocné funkce =====
+    const pad   = n => String(n).padStart(2, '0');
+    const fmt   = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const addMin= (d, m) => new Date(d.getTime() + m*60000);
 
-    // ======= INTERNÍ FUNKCE ==========
-    function hhmmToDate(str) {
-      const [h, m] = str.split(':').map(Number);
-      const d = new Date();
-      d.setHours(h, m, 0, 0);
-      return d;
+    // ===== DOM prvky =====
+    const setupEl   = document.getElementById('setup');
+    const dashEl    = document.getElementById('dashboard');
+    const startIn   = document.getElementById('startTime');
+    const zoneSel   = document.getElementById('zoneSelect');
+    const launchBtn = document.getElementById('launch');
+
+    const zoneEl      = document.getElementById('zone');
+    const nowEl       = document.getElementById('now');
+    const cdEl        = document.getElementById('countdown');
+    const scheduleEl  = document.getElementById('schedule');
+    const nextEl      = document.getElementById('next');
+
+    let closeTime = null;
+
+    function startGame(gameStartStr, zoneIndex) {
+      // gameStartStr formát HH:MM
+      const [sh, sm] = gameStartStr.split(':').map(Number);
+      const today    = new Date();
+      today.setHours(sh, sm, 0, 0);
+
+      const open  = addMin(today, zoneIndex * 45);
+      const close = addMin(open,   45);
+      const next  = zoneIndex < 4 ? addMin(close, 0) : null; // další zóna začíná ihned po uzavření
+
+      // Aktualizuj UI
+      zoneEl.textContent = `ZÓNA ${zoneIndex + 1}`;
+      scheduleEl.textContent = `Otevřeno ${fmt(open)} – ${fmt(close)}`;
+      nextEl.textContent = next ? `Další zóna otevřena v ${fmt(next)}` : '— konec hry —';
+
+      closeTime = close;
+      setupEl.classList.add('hidden');
+      dashEl.classList.remove('hidden');
+
+      // Fullscreen na první kliknutí dovnitř dashboardu
+      if (document.fullscreenEnabled && !document.fullscreenElement) {
+        dashEl.addEventListener('click', () => dashEl.requestFullscreen(), { once: true });
+      }
     }
 
-    const openTime  = hhmmToDate(openStr);
-    const closeTime = hhmmToDate(closeStr);
-
-    const $zone      = document.getElementById('zone');
-    const $schedule  = document.getElementById('schedule');
-    const $next      = document.getElementById('next');
-    const $now       = document.getElementById('now');
-    const $countdown = document.getElementById('countdown');
-
-    $zone.textContent     = zoneName;
-    $schedule.textContent = `Otevřeno ${openStr} – ${closeStr}`;
-    $next.textContent     = `Další zóna otevřena od ${nextStr}`;
-
-    function pad(n) { return String(n).padStart(2, '0'); }
-
+    // Tick funkce běží jakmile je dashboard zobrazen
     function tick() {
       const now = new Date();
+      nowEl.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-      // Aktuální čas
-      $now.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-
-      // Countdown
-      let diff = Math.floor((closeTime - now) / 1000);
-      if (diff < 0) diff = 0;
-
-      const h = pad(Math.floor(diff / 3600));
-      const m = pad(Math.floor((diff % 3600) / 60));
-      const s = pad(diff % 60);
-      $countdown.textContent = `${h}:${m}:${s}`;
-
-      // Přepni barvu, pokud je zóna zavřená
-      document.body.classList.toggle('closed', diff === 0);
-
+      if (closeTime) {
+        let diff = Math.floor((closeTime - now) / 1000);
+        if (diff < 0) diff = 0;
+        const h = pad(Math.floor(diff / 3600));
+        const m = pad(Math.floor((diff % 3600) / 60));
+        const s = pad(diff % 60);
+        cdEl.textContent = `${h}:${m}:${s}`;
+        document.body.classList.toggle('closed', diff === 0);
+      }
       requestAnimationFrame(tick);
     }
     tick();
 
-    // Fullscreen na kliknutí (jen u kompatibilních prohlížečů)
-    if (document.fullscreenEnabled && !document.fullscreenElement) {
-      document.body.addEventListener('click', () => document.body.requestFullscreen(), { once: true });
+    // ===== Event Listeners =====
+    launchBtn.addEventListener('click', () => {
+      const timeVal = startIn.value;
+      if (!timeVal) { alert('Vyplň čas začátku hry!'); return; }
+      const zoneIdx = parseInt(zoneSel.value, 10) - 1;
+      startGame(timeVal, zoneIdx);
+    });
+
+    // ===== Podpora přímých linků (query paramy) =====
+    const params = new URLSearchParams(location.search);
+    if (params.has('open') && params.has('close') && params.has('zone')) {
+      // starší způsob – kompatibilita
+      startGame(params.get('open'), parseInt(params.get('zone').replace(/\D+/g, ''), 10) - 1);
+      // override times
+      const [oh, om] = params.get('open').split(':').map(Number);
+      const [ch, cm] = params.get('close').split(':').map(Number);
+      const today = new Date();
+      today.setHours(oh, om, 0, 0);
+      closeTime = new Date();
+      closeTime.setHours(ch, cm, 0, 0);
     }
   </script>
 </body>
